@@ -1,0 +1,5 @@
+.array-bar {
+  display: inline-block;
+  margin: 0 1px;
+  background-color: #3b82f6; /* Fallback color */
+}
