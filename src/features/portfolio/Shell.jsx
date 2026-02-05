@@ -18,7 +18,7 @@ const Shell = () => {
   const bottomRef = useRef(null);
   const navigate = useNavigate();
 
-  // --- VIRTUAL FILE SYSTEM ---
+  // File System
   const fileSystem = {
     '~': {
       type: 'dir',
@@ -45,17 +45,15 @@ const Shell = () => {
   const fileContents = {
     'about.txt': "I am a CS student at WPI (2026) passionate about Systems Programming, AI, and Full-Stack Web Development.",
     'contact.md': "Email: gwiandt@wpi.edu\nLinkedIn: linkedin.com/in/guillermo-wiandt",
-    'shell_source.c': "// TODO: Link to actual GitHub repo\n#include <stdio.h>\nint main() { printf(\"Hello World\"); return 0; }",
+    'shell_source.c': "#include <stdio.h>\nint main() { printf(\"Hello World\"); return 0; }",
     'secret.bin': "01001000 01101001 00100001 00100000 01011001 01101111 01110101 00100000 01100110 01101111 01110101 01101110 01100100 00100000 01101101 01100101"
   };
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [output]);
 
   const handleKeyDown = (e) => {
-    // 1. History Navigation (Up/Down)
     if (e.key === 'ArrowUp') {
         e.preventDefault();
         if (historyIndex < commandHistory.length - 1) {
@@ -73,14 +71,10 @@ const Shell = () => {
             setHistoryIndex(-1);
             setInput('');
         }
-    } 
-    // 2. Tab Completion
-    else if (e.key === 'Tab') {
+    } else if (e.key === 'Tab') {
         e.preventDefault();
         handleTabCompletion();
-    }
-    // 3. Execute Command
-    else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter') {
         executeCommand();
     }
   };
@@ -88,14 +82,10 @@ const Shell = () => {
   const handleTabCompletion = () => {
       const parts = input.trim().split(' ');
       const currentInput = parts[parts.length - 1];
-      
       const currentDirObj = fileSystem[currentPath];
       if (!currentDirObj) return;
-
       const matches = Object.keys(currentDirObj.contents).filter(file => file.startsWith(currentInput));
-      
       if (matches.length === 1) {
-          // Complete it
           parts[parts.length - 1] = matches[0];
           setInput(parts.join(' '));
       }
@@ -104,15 +94,9 @@ const Shell = () => {
   const executeCommand = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-
-    // Add to history
     setCommandHistory(prev => [...prev, trimmed]);
     setHistoryIndex(-1);
-
-    // Echo command
     const newOutput = [...output, { type: 'command', path: currentPath, content: trimmed }];
-    
-    // Parse
     const parts = trimmed.split(' ');
     const cmd = parts[0].toLowerCase();
     const args = parts.slice(1);
@@ -121,20 +105,16 @@ const Shell = () => {
         case 'help':
             newOutput.push({ type: 'success', content: 'Available commands: ls, cd, cat, clear, ./[exec], open, sudo, whoami' });
             break;
-            
         case 'clear':
             setOutput([]);
             setInput('');
             return;
-
         case 'whoami':
              newOutput.push({ type: 'info', content: 'visitor@wpi-portfolio' });
              break;
-
         case 'sudo':
              newOutput.push({ type: 'error', content: 'Permission denied: You are not Guillermo.' });
              break;
-
         case 'ls':
             const dir = fileSystem[currentPath];
             const files = Object.keys(dir.contents).map(name => {
@@ -143,19 +123,17 @@ const Shell = () => {
             });
             newOutput.push({ type: 'ls', content: files });
             break;
-
         case 'cd':
             if (!args[0] || args[0] === '~') {
                 setCurrentPath('~');
             } else if (args[0] === '..') {
-                if (currentPath !== '~') setCurrentPath('~'); // Simple 2-level logic for now
+                if (currentPath !== '~') setCurrentPath('~');
             } else if (args[0] === 'projects' && currentPath === '~') {
                 setCurrentPath('~/projects');
             } else {
                 newOutput.push({ type: 'error', content: `cd: no such directory: ${args[0]}` });
             }
             break;
-
         case 'cat':
             if (!args[0]) {
                 newOutput.push({ type: 'error', content: 'Usage: cat [filename]' });
@@ -165,13 +143,12 @@ const Shell = () => {
                 newOutput.push({ type: 'error', content: `cat: ${args[0]}: No such file` });
             }
             break;
-
         case 'open':
         case './evolution_ai.exe':
         case './pathfinder.exe':
         case './sorter.exe':
         case './neural_net.exe':
-            let target = args[0] || cmd; // Handle both "open x" and "./x"
+            let target = args[0] || cmd; 
             if (target.includes('evolution')) {
                 newOutput.push({ type: 'success', content: 'Launching Evolutionary AI...' });
                 setTimeout(() => navigate('/genetic'), 800);
@@ -185,17 +162,15 @@ const Shell = () => {
                 newOutput.push({ type: 'success', content: 'Launching Neural Network...' });
                 setTimeout(() => navigate('/ml'), 800);
             } else if (target === 'resume.pdf') {
-                newOutput.push({ type: 'info', content: 'Opening PDF...' });
-                window.open('/resume.pdf', '_blank'); // Opens the file from public folder
+                 newOutput.push({ type: 'info', content: 'Opening PDF...' });
+                 window.open('/resume.pdf', '_blank');
             } else {
                 newOutput.push({ type: 'error', content: `Cannot open ${target}` });
             }
             break;
-
         default:
             newOutput.push({ type: 'error', content: `zsh: command not found: ${cmd}` });
     }
-
     setOutput(newOutput);
     setInput('');
   };
@@ -219,7 +194,7 @@ const Shell = () => {
       </div>
 
       {/* Terminal Body */}
-      <div className="w-full max-w-4xl h-[600px] bg-[#0c0c0c]/95 backdrop-blur-md border-x border-b border-zinc-800 rounded-b-xl p-4 overflow-y-auto font-mono text-sm shadow-2xl custom-scrollbar">
+      <div className="w-full max-w-4xl h-[70vh] bg-[#0c0c0c]/95 backdrop-blur-md border-x border-b border-zinc-800 rounded-b-xl p-4 overflow-y-auto font-mono text-xs sm:text-sm shadow-2xl custom-scrollbar">
          
          {output.map((line, i) => (
              <div key={i} className="mb-1">
@@ -237,10 +212,7 @@ const Shell = () => {
                  {line.type === 'ls' && (
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1">
                          {line.content.map((f, idx) => (
-                             <span key={idx} className={`${
-                                 f.type === 'dir' ? 'text-blue-500 font-bold' : 
-                                 f.type === 'exec' ? 'text-green-500 font-bold' : 'text-zinc-300'
-                             }`}>
+                             <span key={idx} className={`${f.type === 'dir' ? 'text-blue-500 font-bold' : f.type === 'exec' ? 'text-green-500 font-bold' : 'text-zinc-300'}`}>
                                  {f.name}{f.type === 'dir' ? '/' : f.type === 'exec' ? '*' : ''}
                              </span>
                          ))}
@@ -268,7 +240,7 @@ const Shell = () => {
          <div ref={bottomRef} />
       </div>
 
-      <div className="mt-6 text-zinc-500 text-xs font-mono">
+      <div className="mt-6 text-zinc-500 text-xs font-mono text-center">
          Try: <span className="text-zinc-300 bg-zinc-800 px-1 rounded">ls</span> to view files, <span className="text-zinc-300 bg-zinc-800 px-1 rounded">cd projects</span> to navigate, or <span className="text-zinc-300 bg-zinc-800 px-1 rounded">./evolution_ai.exe</span> to launch projects.
       </div>
 
