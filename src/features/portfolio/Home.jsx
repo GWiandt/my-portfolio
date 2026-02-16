@@ -1,6 +1,8 @@
+import React, { useState } from 'react';
 import { Linkedin, Mail, FileText, Code2, Terminal, Cpu, Globe, ArrowUpRight, Map, Dna, Download, Layout } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import ContactModal from "../../components/ContactModal"; // Make sure path is correct
 
 const container = {
   hidden: { opacity: 0 },
@@ -16,6 +18,8 @@ const item = {
 };
 
 const Home = () => {
+  const [isContactOpen, setIsContactOpen] = useState(false);
+
   return (
     <motion.div 
       initial="hidden"
@@ -23,6 +27,8 @@ const Home = () => {
       variants={container}
       className="pb-20"
     >
+      <ContactModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
+
       {/* Hide scrollbar utility */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -37,13 +43,15 @@ const Home = () => {
           
           <div className="relative z-10 flex flex-col h-full justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-medium border border-indigo-500/20 mb-6">
+              {/* STATUS BADGE - FULL TIME */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 mb-6">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                Available for Summer 2026 Internships
+                Open to Full-Time Roles (May 2026)
               </div>
+              
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
                 Guillermo <span className="text-indigo-500">Wiandt</span>
               </h1>
@@ -54,7 +62,6 @@ const Home = () => {
             </div>
 
             <div className="flex flex-wrap gap-4 mt-10">
-              {/* UPDATED RESUME BUTTON: High Contrast "Pop" */}
               <a 
                 href="/resume.pdf" 
                 target="_blank" 
@@ -63,11 +70,14 @@ const Home = () => {
                 <Download size={18} /> View Resume
               </a>
               
-              <a href="mailto:gwiandt@wpi.edu" className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full font-medium text-sm transition-colors flex items-center gap-2">
+              {/* CONTACT BUTTON - OPENS MODAL */}
+              <button 
+                onClick={() => setIsContactOpen(true)}
+                className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full font-medium text-sm transition-colors flex items-center gap-2"
+              >
                 <Mail size={16} /> Contact
-              </a>
+              </button>
               
-              {/* UPDATED LINKEDIN LINK */}
               <a href="https://www.linkedin.com/in/guillermo-wiandt-550684238/" target="_blank" rel="noreferrer" className="px-4 py-3 bg-[#0077b5]/10 text-blue-400 border border-[#0077b5]/20 rounded-full hover:bg-[#0077b5]/20 transition-colors">
                 <Linkedin size={18} />
               </a>
@@ -75,7 +85,7 @@ const Home = () => {
           </div>
         </motion.div>
 
-        {/* --- TEMPLATES PROMO (ENTIRE CARD IS NOW A LINK) --- */}
+        {/* --- TEMPLATES PROMO (CLICKABLE CARD) --- */}
         <motion.div variants={item}>
             <Link to="/templates" className="block h-full">
                 <div className="h-full bg-gradient-to-br from-zinc-900/60 to-zinc-900/20 border border-white/10 rounded-3xl p-8 flex flex-col justify-between group hover:border-indigo-500/30 hover:bg-zinc-800/50 transition-all cursor-pointer">
