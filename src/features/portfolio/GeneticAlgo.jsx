@@ -2,16 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, RefreshCw, Dna, Trophy, Eraser, MousePointer2, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+// Tuned heuristics for the simulation environment
 const POPULATION_SIZE = 400;
 const LIFESPAN = 800; 
 const MAX_FORCE = 0.5;
-const GRID_RES = 20; // Resolution of the scent map (20x20px blocks)
+const GRID_RES = 20; // 20px resolution balances BFS calculation speed with accurate pathfinding
 
 const GeneticAlgo = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
   const navigate = useNavigate();
 
+  // --- UI STATE ---
+  // We strictly reserve React state for UI components that need to trigger re-renders.
   const [generation, setGeneration] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [bestFitness, setBestFitness] = useState(0);
@@ -23,28 +26,35 @@ const GeneticAlgo = () => {
   const [hasInteracted, setHasInteracted] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
 
+  // --- SIMULATION ENGINE STATE ---
+  // High-frequency data is held in refs to bypass the React Virtual DOM.
+  // Pushing 400 moving agents into useState would trigger 60 re-renders per second and crash the browser.
   const population = useRef([]);
   const matingPool = useRef([]);
   const target = useRef({ x: 400, y: 50 });
   const count = useRef(0);
-  
   const obstacles = useRef([{ x: 200, y: 300, w: 400, h: 20 }]);
   const fitnessGrid = useRef([]); 
+  
   const cols = Math.ceil(800 / GRID_RES);
   const rows = Math.ceil(600 / GRID_RES);
 
-  // --- 1. INTELLIGENT MAPPING (BFS) ---
+  // --- 1. SPATIAL AWARENESS (BFS Flow Field) ---
+  // Standard genetic algorithms use Euclidean distance for fitness, which fails on U-shaped walls (local minima traps).
+  // This BFS calculates the true shortest-path grid distance around obstacles, acting as a "scent map" for the agents.
   const updateFitnessGrid = () => {
     const grid = new Array(cols).fill(0).map(() => new Array(rows).fill(Infinity));
     const queue = [];
     const targetCol = Math.floor(target.current.x / GRID_RES);
     const targetRow = Math.floor(target.current.y / GRID_RES);
     
+    // Seed the target location as distance 0
     if (targetCol >= 0 && targetCol < cols && targetRow >= 0 && targetRow < rows) {
         grid[targetCol][targetRow] = 0;
         queue.push({ c: targetCol, r: targetRow, dist: 0 });
     }
 
+    // Flood fill outward, ignoring blocked cells
     while (queue.length > 0) {
         const { c, r, dist } = queue.shift();
         const neighbors = [{ c: c + 1, r: r }, { c: c - 1, r: r }, { c: c, r: r + 1 }, { c: c, r: r - 1 }];
@@ -54,6 +64,7 @@ const GeneticAlgo = () => {
                 if (grid[n.c][n.r] === Infinity) {
                     const centerX = n.c * GRID_RES + GRID_RES / 2;
                     const centerY = n.r * GRID_RES + GRID_RES / 2;
+                    
                     let isBlocked = false;
                     for (let obs of obstacles.current) {
                         if (centerX > obs.x && centerX < obs.x + obs.w && centerY > obs.y && centerY < obs.y + obs.h) {
@@ -93,7 +104,7 @@ const GeneticAlgo = () => {
       fitness: 0,
       completed: false,
       crashed: false,
-      bestMapScore: Infinity, 
+      bestMapScore: Infinity, // Tracks the lowest BFS grid number this agent reaches
     };
   };
 
@@ -109,7 +120,9 @@ const GeneticAlgo = () => {
     return genes;
   };
 
+  // --- 2. PHYSICS ENGINE ---
   const runPhysicsStep = () => {
+    // End of generation lifecycle
     if (count.current >= LIFESPAN) {
       evaluate();
       selection();
@@ -117,6 +130,7 @@ const GeneticAlgo = () => {
       setGeneration(g => g + 1);
       return; 
     }
+    
     let reached = 0;
     population.current.forEach(rocket => {
       if (!rocket.completed && !rocket.crashed) {
@@ -127,6 +141,8 @@ const GeneticAlgo = () => {
         rocket.pos.y += rocket.vel.y;
         rocket.acc = { x: 0, y: 0 };
         checkCollision(rocket);
+        
+        // Agent "sniffs" the current grid square to see if it's closer to the target than its previous best
         if (!rocket.crashed) {
             const col = Math.floor(rocket.pos.x / GRID_RES);
             const row = Math.floor(rocket.pos.y / GRID_RES);
@@ -138,11 +154,13 @@ const GeneticAlgo = () => {
       }
       if (rocket.completed) reached++;
     });
+    
     setSuccessCount(reached);
     count.current++;
   };
 
   const update = () => {
+    // Allows simulation to run at multi-x speed without increasing the actual monitor framerate
     for(let i = 0; i < speed; i++) { runPhysicsStep(); }
     draw();
     if (isRunning) requestRef.current = requestAnimationFrame(update);
@@ -169,20 +187,32 @@ const GeneticAlgo = () => {
     }
   };
 
+  // --- 3. EVOLUTION & MACHINE LEARNING ---
   const evaluate = () => {
     let maxFit = 0;
     population.current.forEach(rocket => {
       let mapScore = rocket.bestMapScore;
       if (mapScore === Infinity) mapScore = 1000;
+      
+      // Inverse square law: Lower map scores yield exponentially higher fitness
       let fit = 1 / (mapScore * mapScore + 1);
-      if (rocket.completed) { fit *= 10; fit += (LIFESPAN - count.current) * 0.1; }
+      
+      // Heavy multipliers based on success/failure states
+      if (rocket.completed) { 
+        fit *= 10; 
+        fit += (LIFESPAN - count.current) * 0.1; // Bonus for arriving quickly
+      }
       if (rocket.crashed) fit *= 0.5;
+      
       rocket.fitness = fit;
       if (fit > maxFit) maxFit = fit;
     });
+
+    // Normalize fitness values between 0 and 1 for the mating pool selection
     population.current.sort((a, b) => b.fitness - a.fitness);
     const bestFit = population.current[0].fitness;
     population.current.forEach(rocket => rocket.fitness /= bestFit);
+    
     const displayScore = population.current[0].bestMapScore === Infinity ? 0 : (100 - population.current[0].bestMapScore);
     setBestFitness(displayScore);
     setGlobalBest(prev => displayScore > prev ? displayScore : prev);
@@ -190,13 +220,21 @@ const GeneticAlgo = () => {
 
   const selection = () => {
     matingPool.current = [];
+    
+    // Weight the mating pool: Fitter agents get placed in the array more times
     population.current.forEach(rocket => {
       const n = Math.floor(rocket.fitness * 100);
       for (let i = 0; i < n; i++) { matingPool.current.push(rocket.dna); }
     });
+    
     if (matingPool.current.length === 0) matingPool.current = population.current.map(r => r.dna);
+    
     const newPop = [];
+    
+    // ELITISM: Directly clone the top 3 absolute best performers into the new generation.
+    // This prevents the population from "forgetting" its best route due to bad random mutations.
     for(let i=0; i<3; i++) newPop.push(createRocket(JSON.parse(JSON.stringify(population.current[i].dna))));
+    
     for (let i = 3; i < POPULATION_SIZE; i++) {
       const parentA = random(matingPool.current);
       const parentB = random(matingPool.current);
@@ -215,7 +253,7 @@ const GeneticAlgo = () => {
   };
 
   const mutate = (dna) => {
-    const mutationRate = 0.02; 
+    const mutationRate = 0.02; // 2% chance per vector keeps the gene pool fresh without causing chaos
     for (let i = 0; i < dna.length; i++) {
       if (Math.random() < mutationRate) {
         const angle = Math.random() * Math.PI * 2;
@@ -227,7 +265,8 @@ const GeneticAlgo = () => {
 
   const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-  // --- NEW: RESPONSIVE MOUSE COORDINATES ---
+  // --- 4. CUSTOM TRACK BUILDER ---
+  // Calculates accurate mouse/touch coordinates even when the canvas is scaled down by CSS
   const getScaledPos = (e) => {
       const canvas = canvasRef.current;
       const rect = canvas.getBoundingClientRect();
@@ -262,7 +301,7 @@ const GeneticAlgo = () => {
 
     if (newObs.w > 5 && newObs.h > 5) {
         obstacles.current.push(newObs);
-        updateFitnessGrid();
+        updateFitnessGrid(); // Instantly recalculate the BFS map when a new wall is dropped
     }
     setIsDrawing(false);
     setDrawStart(null);
@@ -306,6 +345,9 @@ const GeneticAlgo = () => {
       setHasInteracted(true); 
   };
 
+  // --- 5. RENDER ENGINE ---
+  // Using HTML5 Canvas ctx calls instead of mapping over React DOM elements.
+  // This enables smooth 60fps rendering for complex visual state without React overhead.
   const draw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -326,12 +368,15 @@ const GeneticAlgo = () => {
             }
         }
     }
+    
     ctx.fillStyle = '#ef4444';
     obstacles.current.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.w, obs.h));
+    
     ctx.fillStyle = '#10b981';
     ctx.beginPath();
     ctx.arc(target.current.x, target.current.y, 16, 0, Math.PI * 2);
     ctx.fill();
+    
     population.current.forEach(rocket => {
       ctx.save();
       ctx.translate(rocket.pos.x, rocket.pos.y);
@@ -356,10 +401,17 @@ const GeneticAlgo = () => {
     if (isRunning) requestRef.current = requestAnimationFrame(update);
     else cancelAnimationFrame(requestRef.current);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [isRunning, speed, showHeatmap]);
+  }, [isRunning, speed,]);
+
+  useEffect(() => {
+    if (!isRunning) {
+      draw();
+    }
+  }, [showHeatmap]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex flex-col items-center justify-center p-4 pt-24">
+      {/* HEADER CONTROLS */}
       <div className="w-full max-w-[800px] flex justify-between items-center mb-4">
         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors">
             <ArrowLeft size={20} /> Back
@@ -378,6 +430,7 @@ const GeneticAlgo = () => {
         </div>
       </div>
 
+      {/* CANVAS CONTAINER */}
       <div className="relative group select-none w-full max-w-[800px]">
         <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
         <div className="relative bg-[#121214] border border-white/10 rounded-xl overflow-hidden shadow-2xl cursor-crosshair">
@@ -404,6 +457,7 @@ const GeneticAlgo = () => {
         </div>
       </div>
 
+      {/* BOTTOM CONTROLS */}
       <div className="w-full max-w-[800px] mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-zinc-900/50 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
             <div className="flex justify-between items-center">
